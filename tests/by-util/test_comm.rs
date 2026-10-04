@@ -823,3 +823,20 @@ fn test_identical_unsorted_prefix_check_order_fails() {
         .stdout_is("\t\tb\n")
         .stderr_is("comm: file 1 is not in sorted order\n");
 }
+
+#[test]
+fn test_check_order_with_lines_of_varying_length() {
+    // The previous line is kept in a reused buffer. After a long line, a
+    // shorter one must replace it entirely: leftover bytes would make the
+    // repeated `abd` look out of order.
+    let scene = TestScenario::new(util_name!());
+    let at = &scene.fixtures;
+    at.write("f1", "abcdef\nabd\nabd\n");
+    at.write("f2", "abc\nabdz\n");
+    scene
+        .ucmd()
+        .args(&["--check-order", "f1", "f2"])
+        .succeeds()
+        .stdout_is("\tabc\nabcdef\nabd\nabd\n\tabdz\n")
+        .no_stderr();
+}

@@ -129,14 +129,20 @@ impl OrderChecker {
         }
     }
 
+    /// Reuses the buffer, since this runs for every line.
+    fn remember(&mut self, line: &[u8]) {
+        self.last_line.clear();
+        self.last_line.extend_from_slice(line);
+    }
+
     fn verify_order(&mut self, current_line: &[u8], files_differ: bool) -> bool {
         if self.mode == CheckOrder::IfDiffer && !files_differ {
-            self.last_line = current_line.to_vec();
+            self.remember(current_line);
             return true;
         }
 
         if self.last_line.is_empty() {
-            self.last_line = current_line.to_vec();
+            self.remember(current_line);
             return true;
         }
 
@@ -150,7 +156,7 @@ impl OrderChecker {
             self.has_error = true;
         }
 
-        self.last_line = current_line.to_vec();
+        self.remember(current_line);
         is_ordered || self.mode != CheckOrder::Always
     }
 }
@@ -173,8 +179,11 @@ fn comm(
     delim: &str,
     opts: &ArgMatches,
 ) -> UResult<()> {
-    let width_col_1 = usize::from(!opts.get_flag(options::COLUMN_1));
-    let width_col_2 = usize::from(!opts.get_flag(options::COLUMN_2));
+    let show_col_1 = !opts.get_flag(options::COLUMN_1);
+    let show_col_2 = !opts.get_flag(options::COLUMN_2);
+    let show_col_3 = !opts.get_flag(options::COLUMN_3);
+    let width_col_1 = usize::from(show_col_1);
+    let width_col_2 = usize::from(show_col_2);
 
     let delim_col_2 = delim.repeat(width_col_1);
     let delim_col_3 = delim.repeat(width_col_1 + width_col_2);
@@ -224,7 +233,7 @@ fn comm(
                 if mode != CheckOrder::Never && !checker1.verify_order(ra, files_differ) {
                     break;
                 }
-                if !opts.get_flag(options::COLUMN_1) {
+                if show_col_1 {
                     writer
                         .write_all(ra)
                         .map_err_context(|| translate!("comm-error-write"))?;
@@ -239,7 +248,7 @@ fn comm(
                 if mode != CheckOrder::Never && !checker2.verify_order(rb, files_differ) {
                     break;
                 }
-                if !opts.get_flag(options::COLUMN_2) {
+                if show_col_2 {
                     write_line_with_delimiter(&mut writer, delim_col_2.as_bytes(), rb)?;
                 }
                 rb.clear();
@@ -255,7 +264,7 @@ fn comm(
                 {
                     break;
                 }
-                if !opts.get_flag(options::COLUMN_3) {
+                if show_col_3 {
                     write_line_with_delimiter(&mut writer, delim_col_3.as_bytes(), ra)?;
                 }
                 ra.clear();
