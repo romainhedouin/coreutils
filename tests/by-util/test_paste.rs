@@ -455,6 +455,26 @@ fn test_data() {
 }
 
 #[test]
+fn test_output_larger_than_the_write_buffer() {
+    // The output is buffered, so it must come out intact when it is several
+    // times larger than the buffer.
+    use std::fmt::Write as _;
+
+    const LINES: usize = 20_000;
+    let (mut a, mut b, mut expected) = (String::new(), String::new(), String::new());
+    for i in 0..LINES {
+        writeln!(a, "a{i}").unwrap();
+        writeln!(b, "b{i}").unwrap();
+        writeln!(expected, "a{i}\tb{i}").unwrap();
+    }
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("a", &a);
+    at.write("b", &b);
+    ucmd.args(&["a", "b"]).succeeds().stdout_is(expected);
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 #[cfg_attr(wasi_runner, ignore = "WASI: argv/filenames must be valid UTF-8")]
 fn test_non_utf8_delimiter() {

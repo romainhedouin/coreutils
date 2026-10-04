@@ -7,7 +7,7 @@ use clap::{Arg, ArgAction, Command};
 use std::cell::{OnceCell, RefCell};
 use std::ffi::OsString;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Stdin, Write, stdin, stdout};
+use std::io::{BufRead, BufReader, BufWriter, Read, Stdin, Write, stdin, stdout};
 use std::iter::Cycle;
 use std::path::Path;
 use std::rc::Rc;
@@ -17,6 +17,8 @@ use uucore::format_usage;
 use uucore::i18n::charmap::mb_char_len;
 use uucore::line_ending::LineEnding;
 use uucore::translate;
+
+const OUTPUT_BUFFER_SIZE: usize = 64 * 1024;
 
 mod options {
     pub const DELIMITER: &str = "delimiters";
@@ -131,6 +133,9 @@ fn paste(
         );
     }
 
+    // `Stdout` is line buffered: unbuffered, each row costs a `write(2)`.
+    let mut stdout = BufWriter::with_capacity(OUTPUT_BUFFER_SIZE, stdout);
+
     let line_ending_byte_array_ref = &[line_ending_byte];
 
     let mut delimiter_state = DelimiterState::new(&unescaped_and_encoded_delimiters);
@@ -200,6 +205,7 @@ fn paste(
         }
     }
 
+    stdout.flush()?;
     Ok(())
 }
 
