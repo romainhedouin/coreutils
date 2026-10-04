@@ -459,6 +459,25 @@ fn test_large_width_ascii_dump() {
 }
 
 #[test]
+fn test_output_larger_than_the_write_buffer() {
+    // The output is buffered, so it must come out intact when it is several
+    // times larger than the buffer: one 4-byte line per input byte.
+    use std::fmt::Write as _;
+
+    let input: Vec<u8> = (0..=255).cycle().take(100_000).collect();
+    let mut expected = String::new();
+    for b in &input {
+        writeln!(expected, " {b:02x}").unwrap();
+    }
+
+    new_ucmd!()
+        .args(&["-An", "-v", "-tx1", "-w1"])
+        .run_piped_stdin(input)
+        .success()
+        .stdout_only(expected);
+}
+
+#[test]
 fn test_invalid_width() {
     let input: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
     let expected_output = unindent(

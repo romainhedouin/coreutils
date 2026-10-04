@@ -23,7 +23,8 @@ mod prn_float;
 mod prn_int;
 
 use std::cmp;
-use std::io::{BufReader, Read};
+use std::io::Write as _;
+use std::io::{BufReader, BufWriter, Read};
 
 use crate::byteorder_io::ByteOrder;
 use crate::formatter_item_info::FormatWriter;
@@ -263,10 +264,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Kept for the caret in SIZE diagnostics, which echoes the command line.
     let diag_args = uucore::diagnostics::capture(&raw_args);
     let od_options = OdOptions::new(&clap_matches, &args, diag_args.as_deref())?;
-    let mut out = std::io::stdout().lock();
+    let mut out = BufWriter::with_capacity(OUTPUT_BUFFER_SIZE, std::io::stdout().lock());
 
     // Check if we're in strings mode
-    if let Some(min_length) = od_options.string_min_length {
+    let result = if let Some(min_length) = od_options.string_min_length {
         extract_strings_from_input(
             &od_options.input_strings,
             od_options.skip_bytes,
@@ -303,7 +304,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             &output_info,
             &mut out,
         )
-    }
+    };
+    result?;
+    out.flush()?;
+    Ok(())
 }
 
 pub fn uu_app() -> Command {
@@ -515,6 +519,8 @@ pub fn uu_app() -> Command {
         )
 }
 
+const OUTPUT_BUFFER_SIZE: usize = 64 * 1024;
+
 /// Loops through the input line by line, calling `write_bytes` to take care of the output.
 fn odfunc<I, W>(
     input_offset: &mut InputOffset,
@@ -581,6 +587,7 @@ where
                 input_offset.increase_position(length as u64);
             }
             Err(e) => {
+                let _ = writer.flush();
                 show_error!("{e}");
                 input_offset.write_final_offset(writer)?;
                 return Err(1.into());
@@ -674,6 +681,7 @@ fn extract_strings_from_input(
                 // Note: GNU od does not output unterminated strings at EOF
                 // Strings must be null-terminated to be output
                 if mf.has_error() {
+                    let _ = writer.flush();
                     show_error!("{e}");
                     return Err(1.into());
                 }
